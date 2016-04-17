@@ -1,5 +1,7 @@
 # Elm Custom Element Demo
 
+http://lukewestby.com/elm-custom-element-demo
+
 Demonstrates an Elm application running inside of a W3C Custom Element. For
 best results, use with a browser known to support the Custom Elements API. I
 tested this in Chrome 49.
