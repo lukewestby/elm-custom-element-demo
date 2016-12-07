@@ -15,7 +15,7 @@ window.ElmCustomElement = (function () {
       var self = this;
       self._attributesJson = attributesToObject(this.attributes);
       self._wrapper = document.createElement('div');
-      self._elmApp = Elm.embed(elmModule, this._wrapper, { attributes: this._attributesJson });
+      self._elmApp = elmModule.embed(this._wrapper, { attributes: this._attributesJson });
       self._shadow = this.createShadowRoot();
       self._shadow.appendChild(this._wrapper);
       self._previousEventValues = {};

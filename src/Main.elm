@@ -1,115 +1,97 @@
-module Main (..) where
+port module Main exposing (..)
 
-import Task exposing (Task)
-import Json.Decode as Decode exposing (Value)
-import Effects exposing (Effects, Never)
-import Html exposing (Html, div, text)
-import Html.Attributes exposing (style)
-import StartApp exposing (App)
+import Html as H exposing (Html)
+import Html.Attributes as HA
+import Json.Decode as Json exposing (Decoder)
+import Process
+import Task
+
+
+main : Program Json.Value Model Msg
+main =
+    H.programWithFlags
+        { init = initialState
+        , update = update
+        , view = view
+        , subscriptions = \_ -> Sub.batch [ attributes AttributesChange ]
+        }
+
+
+type alias Model =
+    { count : Int
+    , color : String
+    }
+
+
+initialState : Json.Value -> ( Model, Cmd Msg )
+initialState attrs =
+    ( { count = 0
+      , color =
+            attrs
+                |> Json.decodeValue attributeDecoder
+                |> Result.withDefault defaultAttributes
+                |> .color
+      }
+    , waitAndUpdate
+    )
 
 
 type alias Attributes =
-  { color : String
-  }
+    { color : String }
 
 
 defaultAttributes : Attributes
 defaultAttributes =
-  { color = "#0F0"
-  }
+    { color = "#0F0" }
 
 
-type alias Model =
-  { count : Int
-  , color : String
-  }
+type Msg
+    = UpdateCounter
+    | AttributesChange Attributes
 
 
-initialState : ( Model, Effects Action )
-initialState =
-  ( { count = 0
-    , color = defaultAttributes.color
-    }
-  , waitAndUpdate
-  )
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        UpdateCounter ->
+            let
+                newCount =
+                    model.count + 1
+            in
+                { model | count = model.count + 1 }
+                    ! [ waitAndUpdate
+                      , events <| Events <| newCount
+                      ]
+
+        AttributesChange attributes ->
+            { model | color = attributes.color } ! []
 
 
-decodeAttributes : Decode.Decoder Attributes
-decodeAttributes =
-  Decode.map
-    Attributes
-    (Decode.at [ "color" ] Decode.string)
+waitAndUpdate : Cmd Msg
+waitAndUpdate =
+    Process.sleep 1000
+        |> Task.perform (always UpdateCounter)
 
 
 type alias Events =
-  { change : Int
-  }
-
-
-type Action
-  = UpdateCounter
-  | AttributesChange Attributes
-
-
-waitAndUpdate : Effects Action
-waitAndUpdate =
-  Task.sleep 1000
-    |> Task.map (always UpdateCounter)
-    |> Effects.task
-
-
-update : Action -> Model -> ( Model, Effects Action )
-update action model =
-  case action of
-    UpdateCounter ->
-      ( { model | count = model.count + 1 }
-      , waitAndUpdate
-      )
-
-    AttributesChange attributes ->
-      ( { model | color = attributes.color }
-      , Effects.none
-      )
-
-
-view : Signal.Address Action -> Model -> Html
-view address model =
-  div
-    [ style [ ( "color", model.color ) ] ]
-    [ text <| toString model ]
-
-
-app : App Model
-app =
-  StartApp.start
-    { init = initialState
-    , update = update
-    , view = view
-    , inputs = [ attributesInput ]
+    { change : Int
     }
 
 
-port tasks : Signal (Task Never ())
-port tasks =
-  app.tasks
+port events : Events -> Cmd msg
 
 
-main : Signal Html
-main =
-  app.html
+port attributes : (Attributes -> msg) -> Sub msg
 
 
-port events : Signal Events
-port events =
-  app.model
-    |> Signal.dropRepeats
-    |> Signal.map (\model -> { change = model.count })
+view : Model -> Html Msg
+view model =
+    H.div [ HA.style [ ( "color", model.color ) ] ]
+        [ H.text <| toString model ]
 
 
-port attributes : Signal Value
-attributesInput : Signal Action
-attributesInput =
-  attributes
-    |> Signal.map (Decode.decodeValue decodeAttributes)
-    |> Signal.filterMap Result.toMaybe defaultAttributes
-    |> Signal.map AttributesChange
+attributeDecoder : Decoder Attributes
+attributeDecoder =
+    Json.string
+        |> Json.at [ "color" ]
+        |> Json.map Attributes
